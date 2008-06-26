@@ -1,0 +1,39 @@
+17 Jun 2008 - version 2.4
+
+	- Add 'on the fly' code rewrite capability. See ProxyHTMLRewrite
+	Perl Apache variable in README file. Usefull if you want for example
+	to rename the filename of an image or anything else.
+	- Move project to CPAN.
+
+30 Apr 2008 - version 2.3
+
+	- Fix parsing/replacement of CSS url called without quote, ex:
+	<@import url(http://server/file.css);>.
+	Thanks to Arthur LUTZ for the report.
+
+23 May 2007 - version 2.2
+
+	- Fix parsing of javascript code using escaped quote.
+	ex: window.open(&quot;http://www.mydomain.com&quot;);
+	Thanks to Viesturs Ducens for the report.
+
+20 Mar 2007 - Version 2.1
+
+	- Fix meta refresh parsing
+	- Fix misshandling of ProxyHTMLVerbose value
+	- Fix base href replacement using fully qualified URL
+	- Now support Http compression.
+
+   Many thanks to Rob Janssen for bugs fix and great reports.
+
+02 Dec 2005 - Version 2.0
+
+	- Complete link parser rewrite.
+	- First stable/production version with Freshmeat annoucement.
+
+15 Oct 2005 - Version 1.0
+
+	- First shoot. May not support all kind of HTML writer.
+	- Testing only.
+
+

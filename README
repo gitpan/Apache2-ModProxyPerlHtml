@@ -1,0 +1,137 @@
+DESCRIPTION
+    Apache2::ModProxyPerlHtml is a mod_perl2 replacement of the Apache2
+    module mod_proxy_html.c use to rewrite HTML links for a reverse proxy.
+
+    Apache2::ModProxyPerlHtml is very simple and has far better
+    parsing/replacement of URL than the original C code. It also support
+    meta tag, CSS, and javascript URL rewriting and can be use with
+    compressed HTTP. You can now replace any code by other, like changing
+    images name or anything else.
+
+AVAIBILITY
+    You can get the latest version of Apache2::ModProxyPerlHtml from
+    CPAN (http://search.cpan.org/).
+
+PREREQUISITES
+    You must have Apache2, mod_perl2 and IO::Compress::Zlib perl module
+    installed.
+
+    You also need to install the mod_proxy Apache module. See documentation
+    at http://httpd.apache.org/docs/2.0/mod/mod_proxy.html
+
+INSTALLATION
+            % perl Makefile.PL
+            % make && make install
+
+APACHE CONFIGURATION
+    Here is the DSO module loading I use:
+
+        LoadModule deflate_module modules/mod_deflate.so
+        LoadModule headers_module modules/mod_headers.so
+        LoadModule proxy_module modules/mod_proxy.so
+        LoadModule proxy_connect_module modules/mod_proxy_connect.so
+        LoadModule proxy_ftp_module modules/mod_proxy_ftp.so
+        LoadModule proxy_http_module modules/mod_proxy_http.so
+        LoadModule ssl_module modules/mod_ssl.so
+        LoadModule perl_module  modules/mod_perl.so
+
+    Here is the reverse proxy configuration I use :
+
+        ProxyRequests Off
+        SSLProxyEngine  On
+        ProxyPreserveHost On
+        ProxyPass       /webmail/  http://webmail.domain.com/
+        ProxyPassReverse /webmail/ http://webmail.domain.com/
+        ProxyPass       /webcal/  http://webcal.domain.com/
+        ProxyPassReverse /webcal/ http://webcal.domain.com/
+        ProxyPass       /intranet/  http://intranet.domain.com/
+        ProxyPassReverse /intranet/ http://intranet.domain.com/
+        PerlInputFilterHandler Apache2::ModProxyPerlHtml
+        PerlOutputFilterHandler Apache2::ModProxyPerlHtml
+        SetHandler perl-script
+        PerlAddVar ProxyHTMLURLMap "http://webmail.domain.com /webmail"
+        PerlAddVar ProxyHTMLURLMap "http://webcal.domain.com /webcal"
+        PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
+        PerlSetVar ProxyHTMLVerbose "On"
+        LogLevel Info
+
+        # URL rewriting
+        RewriteEngine   On
+        RewriteLog      "/var/log/apache/rewrite.log"
+        RewriteLogLevel 9
+        # Add ending '/' if not provided
+        RewriteCond     %{REQUEST_URI}  ^/mail$
+        RewriteRule     ^/(.*)$ /$1/    [R]
+        RewriteCond     %{REQUEST_URI}  ^/planet$
+        RewriteRule     ^/(.*)$ /$1/    [R]
+        # Add full path to the CGI to bypass the index.html redirect that may fail
+        RewriteCond     %{REQUEST_URI}  ^/calendar/$
+        RewriteRule     ^/(.*)/$ /$1/cgi-bin/wcal.pl    [R]
+        RewriteCond     %{REQUEST_URI}  ^/calendar$
+        RewriteRule     ^/(.*)$ /$1/cgi-bin/wcal.pl     [R]
+
+        <Location /webmail/>
+            ProxyPassReverse /
+            PerlAddVar ProxyHTMLURLMap "/ /webmail/"
+            # Use this to disable compressed HTTP
+            #RequestHeader   unset   Accept-Encoding
+            SSLRequireSSL
+        </Location>
+
+        <Location /webcal/>
+            ProxyPassReverse /
+            PerlAddVar ProxyHTMLURLMap "/ /webcal/"
+            # Use this to disable compressed HTTP
+            #RequestHeader   unset   Accept-Encoding
+            SSLRequireSSL
+        </Location>
+
+        <Location /intranet/>
+            ProxyPassReverse /
+            PerlAddVar ProxyHTMLURLMap "/ /intranet/"
+            # Use to avoid duplicate rewriting in some case
+            PerlAddVar ProxyHTMLURLMap "/intranet/intranet /intranet"
+            PerlAddVar ProxyHTMLURLMap "/intranet/webmail /webmail"
+            PerlAddVar ProxyHTMLURLMap "/intranet/webcal /webcal"
+            # Use this to disable compressed HTTP
+            #RequestHeader   unset   Accept-Encoding
+            SSLRequireSSL
+        </Location>
+
+    Note that this example set filterhandlers globally, you can set it in
+    any <Location> part to set it locally and avoid calling this Apache
+    module globally.
+
+    If you want to rewrite some code on the fly, like changing images
+    filename you can use the perl variable ProxyHTMLRewrite under the
+    location directive as follow:
+
+        <Location /webmail/>
+            ...
+            PerlAddVar ProxyHTMLRewrite "/logo/image1.png /images/logo1.png"
+            ...
+        </Location>
+
+    this will replace each occurence of '/logo/image1.png' by
+    '/images/logo1.png' in the entire stream (html, javascript or css). Note
+    the this kind of substitution is done after all other proxy related
+    replacements.
+
+BUGS
+    Apache2::ModProxyPerlHtml is still under development and is pretty
+    stable. Please send me email to submit bug reports or feature requests.
+
+COPYRIGHT
+    Copyright (c) 2005-2008 - Gilles Darold
+
+    All rights reserved. This program is free software; you may redistribute
+    it and/or modify it under the same terms as Perl itself.
+
+AUTHOR
+    Apache2::ModProxyPerlHtml was created by :
+
+            Gilles Darold
+            <gilles at darold dot net>
+
+    and is currently maintain by me.
+
