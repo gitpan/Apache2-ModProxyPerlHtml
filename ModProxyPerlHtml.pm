@@ -1,8 +1,7 @@
 #------------------------------------------------------------------------------
 # Project  : Reverse Proxy HTML link rewriter
 # Name     : ModProxyPerlHtml.pm
-# Language : perl 5.8 built for i686-linux
-# OS       : linux Slackware 10 kernel 2.4.26
+# Language : perl 5
 # Authors  : Gilles Darold, gilles at darold dot net
 # Copyright: Copyright (c) 2005-2008: Gilles Darold - All rights reserved -
 # Description : This mod_perl2 module is a replacement for mod_proxy_html.c
@@ -29,7 +28,7 @@ use constant BUFF_LEN => 8000;
 use Apache2::ServerRec;
 use Apache2::URI;
 
-$Apache2::ModProxyPerlHtml::VERSION = '2.4';
+$Apache2::ModProxyPerlHtml::VERSION = '2.5';
 
 %Apache2::ModProxyPerlHtml::linkElements = (
 	'a'       => ['href'],
@@ -112,7 +111,7 @@ sub handler
 			}
 		}
 		
-		if ($content_type =~ /(text\/html|text\/css|application\/x-javascript)/) {
+		if ($content_type =~ /(text\/html|text\/css|application\/.*javascript)/) {
 			# Replace links if pattern match
 			foreach my $p (@{$ctx->{pattern}}) {
 				my ($match, $substitute) = split(/[\s\t]+/, $p);
@@ -192,6 +191,9 @@ sub link_replacement
 
 	# CSS have url import call, most of the time not quoted
 	$$data =~ s/(url\(['"]*)($replacement|$pattern)(.*['"]*\))/$1$replacement$3/ig;
+
+	# Javascript have image object or other with a src method.
+	$$data =~ s/(\.src[\s\t]*=[\s\t]*['"]*)($replacement|$pattern)(.*['"]*)/$1$replacement$3/ig;
 	
 	# The single ended tag broke mod_proxy parsing
 	$$data =~ s/($replacement|$pattern)>/\/>/ig;
@@ -273,20 +275,14 @@ Here is the DSO module loading I use:
 Here is the reverse proxy configuration I use :
 
     ProxyRequests Off
-    SSLProxyEngine  On
-    ProxyPreserveHost On
+    ProxyPreserveHost Off
     ProxyPass       /webmail/  http://webmail.domain.com/
-    ProxyPassReverse /webmail/ http://webmail.domain.com/
     ProxyPass       /webcal/  http://webcal.domain.com/
-    ProxyPassReverse /webcal/ http://webcal.domain.com/
     ProxyPass       /intranet/  http://intranet.domain.com/
-    ProxyPassReverse /intranet/ http://intranet.domain.com/
+
     PerlInputFilterHandler Apache2::ModProxyPerlHtml
     PerlOutputFilterHandler Apache2::ModProxyPerlHtml
     SetHandler perl-script
-    PerlAddVar ProxyHTMLURLMap "http://webmail.domain.com /webmail"
-    PerlAddVar ProxyHTMLURLMap "http://webcal.domain.com /webcal"
-    PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
     PerlSetVar ProxyHTMLVerbose "On"
     LogLevel Info
 
@@ -308,29 +304,23 @@ Here is the reverse proxy configuration I use :
     <Location /webmail/>
     	ProxyPassReverse /
     	PerlAddVar ProxyHTMLURLMap "/ /webmail/"
+	PerlAddVar ProxyHTMLURLMap "http://webmail.domain.com /webmail"
 	# Use this to disable compressed HTTP
 	#RequestHeader   unset   Accept-Encoding
-    	SSLRequireSSL
     </Location>
 
     <Location /webcal/>
     	ProxyPassReverse /
     	PerlAddVar ProxyHTMLURLMap "/ /webcal/"
-	# Use this to disable compressed HTTP
-	#RequestHeader   unset   Accept-Encoding
-    	SSLRequireSSL
+	PerlAddVar ProxyHTMLURLMap "http://webcal.domain.com /webcal"
     </Location>
 
     <Location /intranet/>
     	ProxyPassReverse /
     	PerlAddVar ProxyHTMLURLMap "/ /intranet/"
-	# Use to avoid duplicate rewriting in some case
-    	PerlAddVar ProxyHTMLURLMap "/intranet/intranet /intranet"
+	PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
     	PerlAddVar ProxyHTMLURLMap "/intranet/webmail /webmail"
     	PerlAddVar ProxyHTMLURLMap "/intranet/webcal /webcal"
-	# Use this to disable compressed HTTP
-	#RequestHeader   unset   Accept-Encoding
-    	SSLRequireSSL
     </Location>
 
 Note that this example set filterhandlers globally, you can set it
@@ -352,8 +342,21 @@ in the entire stream (html, javascript or css).
 Note the this kind of substitution is done after all other proxy related
 replacements.
 
+In certain condition some javascript code will be replaced by error, for
+example:
 
-=head1 BUGS
+	imgUp.src = '/images/' + varPath + '/' + 'up.png';
+
+will be rewritten like this:
+
+	imgUp.src = '/URL/images/' + varPath + '/URL/' + 'up.png';
+
+To avoid the second replacement, write your JS code like that:
+
+	imgUp.src = '/images/' + varPath + unescape('%2F') + 'up.png';
+
+
+=head1 BUGS 
 
 Apache2::ModProxyPerlHtml is still under development and is pretty
 stable. Please send me email to submit bug reports or feature
@@ -374,5 +377,4 @@ Apache2::ModProxyPerlHtml was created by :
 	<gilles at darold dot net>
 
 and is currently maintain by me.
-
 

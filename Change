@@ -1,3 +1,12 @@
+24 Nov 2008 - version 2.5
+
+	- Fix parsing/replacement of javascript Object.src='/URL/...'
+	Thanks to Edward Quick for the report.
+	- Fix detection of javascript file with different Content-type
+	header name. Thanks to Edward Quick for the report.
+	- Modify documentation to simplify Apache configuration and
+	add a tips on JS code.
+
 17 Jun 2008 - version 2.4
 
 	- Add 'on the fly' code rewrite capability. See ProxyHTMLRewrite

@@ -9,8 +9,8 @@ DESCRIPTION
     images name or anything else.
 
 AVAIBILITY
-    You can get the latest version of Apache2::ModProxyPerlHtml from
-    CPAN (http://search.cpan.org/).
+    You can get the latest version of Apache2::ModProxyPerlHtml from CPAN
+    (http://search.cpan.org/).
 
 PREREQUISITES
     You must have Apache2, mod_perl2 and IO::Compress::Zlib perl module
@@ -38,20 +38,14 @@ APACHE CONFIGURATION
     Here is the reverse proxy configuration I use :
 
         ProxyRequests Off
-        SSLProxyEngine  On
-        ProxyPreserveHost On
+        ProxyPreserveHost Off
         ProxyPass       /webmail/  http://webmail.domain.com/
-        ProxyPassReverse /webmail/ http://webmail.domain.com/
         ProxyPass       /webcal/  http://webcal.domain.com/
-        ProxyPassReverse /webcal/ http://webcal.domain.com/
         ProxyPass       /intranet/  http://intranet.domain.com/
-        ProxyPassReverse /intranet/ http://intranet.domain.com/
+
         PerlInputFilterHandler Apache2::ModProxyPerlHtml
         PerlOutputFilterHandler Apache2::ModProxyPerlHtml
         SetHandler perl-script
-        PerlAddVar ProxyHTMLURLMap "http://webmail.domain.com /webmail"
-        PerlAddVar ProxyHTMLURLMap "http://webcal.domain.com /webcal"
-        PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
         PerlSetVar ProxyHTMLVerbose "On"
         LogLevel Info
 
@@ -73,29 +67,23 @@ APACHE CONFIGURATION
         <Location /webmail/>
             ProxyPassReverse /
             PerlAddVar ProxyHTMLURLMap "/ /webmail/"
+            PerlAddVar ProxyHTMLURLMap "http://webmail.domain.com /webmail"
             # Use this to disable compressed HTTP
             #RequestHeader   unset   Accept-Encoding
-            SSLRequireSSL
         </Location>
 
         <Location /webcal/>
             ProxyPassReverse /
             PerlAddVar ProxyHTMLURLMap "/ /webcal/"
-            # Use this to disable compressed HTTP
-            #RequestHeader   unset   Accept-Encoding
-            SSLRequireSSL
+            PerlAddVar ProxyHTMLURLMap "http://webcal.domain.com /webcal"
         </Location>
 
         <Location /intranet/>
             ProxyPassReverse /
             PerlAddVar ProxyHTMLURLMap "/ /intranet/"
-            # Use to avoid duplicate rewriting in some case
-            PerlAddVar ProxyHTMLURLMap "/intranet/intranet /intranet"
+            PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
             PerlAddVar ProxyHTMLURLMap "/intranet/webmail /webmail"
             PerlAddVar ProxyHTMLURLMap "/intranet/webcal /webcal"
-            # Use this to disable compressed HTTP
-            #RequestHeader   unset   Accept-Encoding
-            SSLRequireSSL
         </Location>
 
     Note that this example set filterhandlers globally, you can set it in
@@ -116,6 +104,19 @@ APACHE CONFIGURATION
     '/images/logo1.png' in the entire stream (html, javascript or css). Note
     the this kind of substitution is done after all other proxy related
     replacements.
+
+    In certain condition some javascript code will be replaced by error, for
+    example:
+
+            imgUp.src = '/images/' + varPath + '/' + 'up.png';
+
+    will be rewritten like this:
+
+            imgUp.src = '/URL/images/' + varPath + '/URL/' + 'up.png';
+
+    To avoid the second replacement, write your JS code like that:
+
+            imgUp.src = '/images/' + varPath + unescape('%2F') + 'up.png';
 
 BUGS
     Apache2::ModProxyPerlHtml is still under development and is pretty
