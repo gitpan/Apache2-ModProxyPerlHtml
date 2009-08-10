@@ -1,3 +1,10 @@
+10 Aug 2009 - versin 2.6
+
+	- Fix handling of bad javascript content type. Some site use to
+	mark javascript as text/javascript. Thanks to Guillaume REHM for
+	the patch.
+	- Fix META.yml that was still marked in v2.1.
+
 24 Nov 2008 - version 2.5
 
 	- Fix parsing/replacement of javascript Object.src='/URL/...'

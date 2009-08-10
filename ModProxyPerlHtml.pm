@@ -28,7 +28,7 @@ use constant BUFF_LEN => 8000;
 use Apache2::ServerRec;
 use Apache2::URI;
 
-$Apache2::ModProxyPerlHtml::VERSION = '2.5';
+$Apache2::ModProxyPerlHtml::VERSION = '2.6';
 
 %Apache2::ModProxyPerlHtml::linkElements = (
 	'a'       => ['href'],
@@ -111,7 +111,7 @@ sub handler
 			}
 		}
 		
-		if ($content_type =~ /(text\/html|text\/css|application\/.*javascript)/) {
+		if ($content_type =~ /(text\/javascript|text\/html|text\/css|application\/.*javascript)/) {
 			# Replace links if pattern match
 			foreach my $p (@{$ctx->{pattern}}) {
 				my ($match, $substitute) = split(/[\s\t]+/, $p);
