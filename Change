@@ -1,4 +1,11 @@
-10 Aug 2009 - versin 2.6
+11 Nov 2010 - version 2.7
+
+	- Add support to refresh in HTTP header. Thanks to Peter Stubbs
+	for the feature request.
+	- Documentation reviewed.
+	- Creation of a dedicated site at http://modproxyperlhtml.darold.net/
+
+10 Aug 2009 - version 2.6
 
 	- Fix handling of bad javascript content type. Some site use to
 	mark javascript as text/javascript. Thanks to Guillaume REHM for

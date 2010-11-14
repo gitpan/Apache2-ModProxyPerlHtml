@@ -3,7 +3,7 @@
 # Name     : ModProxyPerlHtml.pm
 # Language : perl 5
 # Authors  : Gilles Darold, gilles at darold dot net
-# Copyright: Copyright (c) 2005-2008: Gilles Darold - All rights reserved -
+# Copyright: Copyright (c) 2005-2010: Gilles Darold - All rights reserved -
 # Description : This mod_perl2 module is a replacement for mod_proxy_html.c
 #		with far better URL HTML rewriting.
 # Usage    : See documentation in this file with perldoc.
@@ -28,7 +28,7 @@ use constant BUFF_LEN => 8000;
 use Apache2::ServerRec;
 use Apache2::URI;
 
-$Apache2::ModProxyPerlHtml::VERSION = '2.6';
+$Apache2::ModProxyPerlHtml::VERSION = '2.7';
 
 %Apache2::ModProxyPerlHtml::linkElements = (
 	'a'       => ['href'],
@@ -110,6 +110,14 @@ sub handler
 				$encoding = '';
 			}
 		}
+		my $refresh = $f->r->headers_out->{'Refresh'};
+		if ($refresh) {
+			foreach my $p (@{$ctx->{pattern}}) {
+				my ($match, $substitute) = split(/[\s\t]+/, $p);
+				$refresh =~ s#([^\/:])$match#$1$substitute#;
+			}
+			$f->r->headers_out->set('Refresh' => $refresh);
+		}
 		
 		if ($content_type =~ /(text\/javascript|text\/html|text\/css|application\/.*javascript)/) {
 			# Replace links if pattern match
@@ -122,7 +130,6 @@ sub handler
 			foreach my $p (@{$ctx->{rewrite}}) {
 				my ($match, $substitute) = split(/[\s\t]+/, $p);
 				&rewrite_content(\$ctx->{data}, $match, $substitute, $parsed_uri);
-
 			}
 		}
 
@@ -231,27 +238,29 @@ __END__
 
 =head1 DESCRIPTION
 
-Apache2::ModProxyPerlHtml is a mod_perl2 replacement of the Apache2
-module mod_proxy_html.c use to rewrite HTML links for a reverse proxy.
+Apache2::ModProxyPerlHtml is the most advanced Apache output filter to rewrite
+HTTP headers and HTML links for reverse proxy usage. It is written in Perl and
+exceeds all mod_proxy_html.c limitations without performance lost.
 
 Apache2::ModProxyPerlHtml is very simple and has far better parsing/replacement
 of URL than the original C code. It also support meta tag, CSS, and javascript
-URL rewriting and can be use with compressed HTTP. You can now replace any
-code by other, like changing images name or anything else.
- 
+URL rewriting and can be use with compressed HTTP. You can now replace any code
+by other, like changing images name or anything else. mod_proxy_html can't do
+all of that. Since release 2.7 ModProxyPerlHtml is also able to rewrite HTTP
+headers with refresh url redirection. 
 
 =head1 AVAIBILITY
 
-You can get the latest version of Apache2::ModProxyPerlHtml from
-CPAN (http://search.cpan.org/).
+You can get the latest version of Apache2::ModProxyPerlHtml from CPAN
+(http://search.cpan.org/).
 
 =head1 PREREQUISITES
 
-You must have Apache2, mod_perl2 and IO::Compress::Zlib perl module
-installed.
+You must have Apache2, mod_perl2 and IO::Compress::Zlib perl modules installed
+on your system.
 
-You also need to install the mod_proxy Apache module. See
-documentation at http://httpd.apache.org/docs/2.0/mod/mod_proxy.html
+You also need to install the mod_proxy Apache modules. See documentation at
+http://httpd.apache.org/docs/2.0/mod/mod_proxy.html
 
 =head1 INSTALLATION
 
@@ -260,7 +269,7 @@ documentation at http://httpd.apache.org/docs/2.0/mod/mod_proxy.html
 
 =head1 APACHE CONFIGURATION
 
-Here is the DSO module loading I use:
+In your Apache configuration file you have to load the following DSO modules:
 
     LoadModule deflate_module modules/mod_deflate.so
     LoadModule headers_module modules/mod_headers.so
@@ -272,13 +281,12 @@ Here is the DSO module loading I use:
     LoadModule perl_module  modules/mod_perl.so
 
 
-Here is the reverse proxy configuration I use :
+Then in your Apache site or virtualhost configuration file use ModProxyPerlHtml*
+as follow:
 
     ProxyRequests Off
     ProxyPreserveHost Off
-    ProxyPass       /webmail/  http://webmail.domain.com/
     ProxyPass       /webcal/  http://webcal.domain.com/
-    ProxyPass       /intranet/  http://intranet.domain.com/
 
     PerlInputFilterHandler Apache2::ModProxyPerlHtml
     PerlOutputFilterHandler Apache2::ModProxyPerlHtml
@@ -286,10 +294,66 @@ Here is the reverse proxy configuration I use :
     PerlSetVar ProxyHTMLVerbose "On"
     LogLevel Info
 
+
+    <Location /webcal/>
+        ProxyPassReverse /
+        PerlAddVar ProxyHTMLURLMap "/ /webcal/"
+        PerlAddVar ProxyHTMLURLMap "http://webcal.domain.com /webcal"
+    </Location>
+
+Note that here FilterHandlers are set globally, you can also set them in any
+<Location> part to set it locally and avoid calling this Apache module globally.
+
+If you want to rewrite some code on the fly, like changing images filename you
+can use the perl variable ProxyHTMLRewrite under the location directive as
+follow:
+
+    <Location /webcal/>
+        ...
+        PerlAddVar ProxyHTMLRewrite "/logo/image1.png /images/logo1.png"
+        ...
+    </Location>
+
+
+this will replace each occurence of '/logo/image1.png' by '/images/logo1.png' in
+the entire stream (html, javascript or css). Note that this kind of substitution
+is done after all other proxy related replacements.
+
+In some conditions javascript code can be replaced by error, for example:
+
+        imgUp.src = '/images/' + varPath + '/' + 'up.png';
+
+will be rewritten like this:
+
+        imgUp.src = '/URL/images/' + varPath + '/URL/' + 'up.png';
+
+To avoid the second replacement, write your JS code like that:
+
+        imgUp.src = '/images/' + varPath + unescape('%2F') + 'up.png';
+
+=head1 LIVE EXAMPLE
+
+Here is the reverse proxy configuration I use to give access to Internet users
+to internal applications:
+
+    ProxyRequests Off
+    ProxyPreserveHost Off
+    ProxyPass       /webmail/  http://webmail.domain.com/
+    ProxyPass       /webcal/  http://webcal.domain.com/
+    ProxyPass       /intranet/  http://intranet.domain.com/
+
+
+    PerlInputFilterHandler Apache2::ModProxyPerlHtml
+    PerlOutputFilterHandler Apache2::ModProxyPerlHtml
+    SetHandler perl-script
+    PerlSetVar ProxyHTMLVerbose "On"
+    LogLevel Info
+
+
     # URL rewriting
     RewriteEngine   On
-    RewriteLog      "/var/log/apache/rewrite.log"
-    RewriteLogLevel 9
+    #RewriteLog      "/var/log/apache/rewrite.log"
+    #RewriteLogLevel 9
     # Add ending '/' if not provided
     RewriteCond     %{REQUEST_URI}  ^/mail$
     RewriteRule     ^/(.*)$ /$1/    [R]
@@ -301,60 +365,36 @@ Here is the reverse proxy configuration I use :
     RewriteCond     %{REQUEST_URI}  ^/calendar$
     RewriteRule     ^/(.*)$ /$1/cgi-bin/wcal.pl     [R]
 
+
     <Location /webmail/>
-    	ProxyPassReverse /
-    	PerlAddVar ProxyHTMLURLMap "/ /webmail/"
-	PerlAddVar ProxyHTMLURLMap "http://webmail.domain.com /webmail"
-	# Use this to disable compressed HTTP
-	#RequestHeader   unset   Accept-Encoding
+        ProxyPassReverse /
+        PerlAddVar ProxyHTMLURLMap "/ /webmail/"
+        PerlAddVar ProxyHTMLURLMap "http://webmail.domain.com /webmail"
+        # Use this to disable compressed HTTP
+        #RequestHeader   unset   Accept-Encoding
     </Location>
+
 
     <Location /webcal/>
-    	ProxyPassReverse /
-    	PerlAddVar ProxyHTMLURLMap "/ /webcal/"
-	PerlAddVar ProxyHTMLURLMap "http://webcal.domain.com /webcal"
+        ProxyPassReverse /
+        PerlAddVar ProxyHTMLURLMap "/ /webcal/"
+        PerlAddVar ProxyHTMLURLMap "http://webcal.domain.com /webcal"
     </Location>
+
 
     <Location /intranet/>
-    	ProxyPassReverse /
-    	PerlAddVar ProxyHTMLURLMap "/ /intranet/"
-	PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
-    	PerlAddVar ProxyHTMLURLMap "/intranet/webmail /webmail"
-    	PerlAddVar ProxyHTMLURLMap "/intranet/webcal /webcal"
+        ProxyPassReverse /
+        PerlAddVar ProxyHTMLURLMap "/ /intranet/"
+        PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
+	# Rewrite links that give access to the two previous location 
+        PerlAddVar ProxyHTMLURLMap "/intranet/webmail /webmail"
+        PerlAddVar ProxyHTMLURLMap "/intranet/webcal /webcal"
     </Location>
 
-Note that this example set filterhandlers globally, you can set it
-in any <Location> part to set it locally and avoid calling this
-Apache module globally.
-
-If you want to rewrite some code on the fly, like changing images filename
-you can use the perl variable ProxyHTMLRewrite under the location directive
-as follow:
-
-    <Location /webmail/>
-	...
-    	PerlAddVar ProxyHTMLRewrite "/logo/image1.png /images/logo1.png"
-	...
-    </Location>
-
-this will replace each occurence of '/logo/image1.png' by '/images/logo1.png'
-in the entire stream (html, javascript or css).
-Note the this kind of substitution is done after all other proxy related
-replacements.
-
-In certain condition some javascript code will be replaced by error, for
-example:
-
-	imgUp.src = '/images/' + varPath + '/' + 'up.png';
-
-will be rewritten like this:
-
-	imgUp.src = '/URL/images/' + varPath + '/URL/' + 'up.png';
-
-To avoid the second replacement, write your JS code like that:
-
-	imgUp.src = '/images/' + varPath + unescape('%2F') + 'up.png';
-
+This gives access two a webmail and webcal application hosted internally to all
+authentified users through their own Internet acces. There's also one acces to
+an Intranet portal that have links to the webcal and webmail application. Those
+links must be rewritten twice to works.
 
 =head1 BUGS 
 
@@ -364,7 +404,7 @@ requests.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2005-2008 - Gilles Darold
+Copyright (c) 2005-2010 - Gilles Darold
 
 All rights reserved.  This program is free software; you may redistribute
 it and/or modify it under the same terms as Perl itself.
