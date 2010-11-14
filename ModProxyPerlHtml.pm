@@ -28,7 +28,7 @@ use constant BUFF_LEN => 8000;
 use Apache2::ServerRec;
 use Apache2::URI;
 
-$Apache2::ModProxyPerlHtml::VERSION = '2.7';
+$Apache2::ModProxyPerlHtml::VERSION = '3.0';
 
 %Apache2::ModProxyPerlHtml::linkElements = (
 	'a'       => ['href'],
@@ -246,7 +246,7 @@ Apache2::ModProxyPerlHtml is very simple and has far better parsing/replacement
 of URL than the original C code. It also support meta tag, CSS, and javascript
 URL rewriting and can be use with compressed HTTP. You can now replace any code
 by other, like changing images name or anything else. mod_proxy_html can't do
-all of that. Since release 2.7 ModProxyPerlHtml is also able to rewrite HTTP
+all of that. Since release 3.0 ModProxyPerlHtml is also able to rewrite HTTP
 headers with refresh url redirection. 
 
 =head1 AVAIBILITY

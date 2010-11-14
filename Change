@@ -1,9 +1,11 @@
-11 Nov 2010 - version 2.7
+11 Nov 2010 - version 3.0
 
 	- Add support to refresh in HTTP header. Thanks to Peter Stubbs
 	for the feature request.
 	- Documentation reviewed.
-	- Creation of a dedicated site at http://modproxyperlhtml.darold.net/
+	- Creation of a dedicated site at http://modproxyhtml.darold.net/
+	- The major release version is just to mark the creation of the web
+	site, there's no major change, old Apache is fully compatible.
 
 10 Aug 2009 - version 2.6
 
