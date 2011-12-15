@@ -1,3 +1,18 @@
+14 Dec 2011 - Version 3.1
+
+	- Fix major bug in inflate/deflate compressed http content. It appears
+	  when ModProxyPerlHTML try to uncompressed a gzip file with multiple
+	  file and result in compressed archive corruption. Thanks to Eduardo
+	  Paez Trujillo for the report.
+	- Add support for XML content-type to be rewritten. Thanks to Claude
+	  Durocher for the report.
+	- Add an Apache2/Mod_perl configuration directive to allow user defined
+	  content type. See ProxyHTMLContentType configuration directive, with
+	  default value to actual parsed content-type.
+	- Modify documentation to refect change.
+	- Add support to HTML5 'formaction' new attribute on input and button
+	  elements.
+
 11 Nov 2010 - version 3.0
 
 	- Add support to refresh in HTTP header. Thanks to Peter Stubbs

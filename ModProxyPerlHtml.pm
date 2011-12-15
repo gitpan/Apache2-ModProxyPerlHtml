@@ -3,7 +3,7 @@
 # Name     : ModProxyPerlHtml.pm
 # Language : perl 5
 # Authors  : Gilles Darold, gilles at darold dot net
-# Copyright: Copyright (c) 2005-2010: Gilles Darold - All rights reserved -
+# Copyright: Copyright (c) 2005-2011: Gilles Darold - All rights reserved -
 # Description : This mod_perl2 module is a replacement for mod_proxy_html.c
 #		with far better URL HTML rewriting.
 # Usage    : See documentation in this file with perldoc.
@@ -28,7 +28,7 @@ use constant BUFF_LEN => 8000;
 use Apache2::ServerRec;
 use Apache2::URI;
 
-$Apache2::ModProxyPerlHtml::VERSION = '3.0';
+$Apache2::ModProxyPerlHtml::VERSION = '3.1';
 
 %Apache2::ModProxyPerlHtml::linkElements = (
 	'a'       => ['href'],
@@ -44,7 +44,7 @@ $Apache2::ModProxyPerlHtml::VERSION = '3.0';
 	'iframe'  => ['src', 'longdesc'],
 	'ilayer'  => ['background'],
 	'img'     => ['src', 'lowsrc', 'longdesc', 'usemap'],
-	'input'   => ['src', 'usemap'],
+	'input'   => ['src', 'usemap','formaction'],
 	'ins'     => ['cite'],
 	'isindex' => ['action'],
 	'head'    => ['profile'],
@@ -58,6 +58,7 @@ $Apache2::ModProxyPerlHtml::VERSION = '3.0';
 	'th'      => ['background'],
 	'tr'      => ['background'],
 	'xmp'     => ['href'],
+	'button'  => ['formaction'],
 );
 
 sub handler
@@ -77,6 +78,9 @@ sub handler
 		$f->r->headers_out->unset('Content-Length');
 		my @pattern = $f->r->dir_config->get('ProxyHTMLURLMap');
 		my @rewrite = $f->r->dir_config->get('ProxyHTMLRewrite');
+		my $contenttype = $f->r->dir_config->get('ProxyHTMLContentType');
+		$contenttype ||= '(text\/javascript|text\/html|text\/css|text\/xml|application\/.*javascript|application\/.*xml)';
+
 		my $ct = $f->ctx;
 		$ct->{data} = '';
 		foreach my $p (@pattern) {
@@ -85,6 +89,7 @@ sub handler
 		foreach my $p (@rewrite) {
 			push(@{$ct->{rewrite}}, $p);
 		}
+		$ct->{contenttype} = $contenttype;
 		$f->ctx($ct);
 	}
 	# Thing we do on all invocations
@@ -98,16 +103,17 @@ sub handler
 	if ($f->seen_eos) { 
 		# Skip content that should not have links
 		my $parsed_uri = $f->r->construct_url();
-		my $encoding = $f->r->headers_in->{'Accept-Encoding'} || '';
+		my $a_encoding = $f->r->headers_in->{'Accept-Encoding'} || '';
+
 	       	# if Accept-Encoding: gzip,deflate try to uncompress
-		if ($encoding =~ /gzip|deflate/) {
+		if ( ($a_encoding =~ /gzip|deflate/) && ($content_type =~ /$ctx->{contenttype}/is) ) {
 			use IO::Uncompress::AnyInflate qw(anyinflate $AnyInflateError) ;
 			my $output = '';
 			anyinflate  \$ctx->{data} => \$output or print STDERR "anyinflate failed: $AnyInflateError\n";
 			if ($ctx->{data} ne $output) {
 				$ctx->{data} = $output;
 			} else {
-				$encoding = '';
+				$a_encoding = '';
 			}
 		}
 		my $refresh = $f->r->headers_out->{'Refresh'};
@@ -119,7 +125,7 @@ sub handler
 			$f->r->headers_out->set('Refresh' => $refresh);
 		}
 		
-		if ($content_type =~ /(text\/javascript|text\/html|text\/css|application\/.*javascript)/) {
+		if ($content_type =~ /$ctx->{contenttype}/is) {
 			# Replace links if pattern match
 			foreach my $p (@{$ctx->{pattern}}) {
 				my ($match, $substitute) = split(/[\s\t]+/, $p);
@@ -132,13 +138,13 @@ sub handler
 				&rewrite_content(\$ctx->{data}, $match, $substitute, $parsed_uri);
 			}
 		}
-
-		if ($encoding =~ /gzip/) {
+		# Compress again data if require
+		if ($a_encoding =~ /gzip/) {
 			use IO::Compress::Gzip qw(gzip $GzipError) ;
 			my $output = '';
 			my $status = gzip \$ctx->{data} => \$output or die "gzip failed: $GzipError\n";
 			$ctx->{data} = $output;
-		} elsif ($encoding =~ /deflate/) {
+		} elsif ($a_encoding =~ /deflate/) {
 			use IO::Compress::Deflate qw(deflate $DeflateError) ;
 			my $output = '';
 			my $status = deflate \$ctx->{data} => \$output or die "deflate failed: $DeflateError\n";
@@ -155,6 +161,7 @@ sub handler
 			}
 			$ctx->{data} = '';
 			$ctx->{pattern} = ();
+			$ctx->{rewrite} = ();
 			$ctx->{keepalives} = $c->keepalives;
 		}
 			
@@ -249,6 +256,17 @@ by other, like changing images name or anything else. mod_proxy_html can't do
 all of that. Since release 3.0 ModProxyPerlHtml is also able to rewrite HTTP
 headers with refresh url redirection. 
 
+The replacement capability concern only the following HTTP content type:
+
+	text/javascript
+	text/html
+	text/css
+	text/xml
+	application/.*javascript
+	application/.*xml
+
+other kind of file, will be left untouched (or see ProxyHTMLContentType).
+
 =head1 AVAIBILITY
 
 You can get the latest version of Apache2::ModProxyPerlHtml from CPAN
@@ -279,7 +297,6 @@ In your Apache configuration file you have to load the following DSO modules:
     LoadModule proxy_http_module modules/mod_proxy_http.so
     LoadModule ssl_module modules/mod_ssl.so
     LoadModule perl_module  modules/mod_perl.so
-
 
 Then in your Apache site or virtualhost configuration file use ModProxyPerlHtml*
 as follow:
@@ -314,7 +331,6 @@ follow:
         ...
     </Location>
 
-
 this will replace each occurence of '/logo/image1.png' by '/images/logo1.png' in
 the entire stream (html, javascript or css). Note that this kind of substitution
 is done after all other proxy related replacements.
@@ -330,6 +346,19 @@ will be rewritten like this:
 To avoid the second replacement, write your JS code like that:
 
         imgUp.src = '/images/' + varPath + unescape('%2F') + 'up.png';
+
+ModProxyPerlHTML replacement is activated on certain HTTP Content Type. If you
+experienced that replacement is not activated for your file type, you can use the
+ProxyHTMLContentType configuration directive to redefined the HTTP Content Type
+that should be parsed by ModProxyPerlHTML. The default value is the following
+Perl regular expresssion:
+
+	ProxyHTMLContentType    (text\/javascript|text\/html|text\/css|text\/xml|application\/.*javascript|application\/.*xml)
+
+If you know exactly what you are doing by editing this regexp fill free to add
+the missing Content-Type that must be parsed by ModProxyPerlHTML. Otherwise drop
+me a line with the content type, I will give you the rigth expression. If you don't
+know about the content type, with FireFox simply type Ctrl+i on the web page.
 
 =head1 LIVE EXAMPLE
 
@@ -404,7 +433,7 @@ requests.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2005-2010 - Gilles Darold
+Copyright (c) 2005-2011 - Gilles Darold
 
 All rights reserved.  This program is free software; you may redistribute
 it and/or modify it under the same terms as Perl itself.
