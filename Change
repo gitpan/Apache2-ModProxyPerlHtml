@@ -1,3 +1,17 @@
+21 Dec 2011 - Version 3.2
+
+	- Fix new major issue during inflate/deflate compressed http content
+	  introduced in last release. Thanks to Claude Durocher and Eduardo
+	  Paez Trujillo for the report.
+	- Add debug messages in verbose mode to trace link substitutions in
+	  refresh header and http content. Code with inflate/deflate calls will
+	  also be logged.
+	- Replace call to the warn log method by method Apache2::ServerRec::warn
+	  to add timestamp to verbose trace.
+
+Note that you can always use: RequestHeader unset Accept-Encoding
+to disable the use of compressed HTTP on remote server side.
+
 14 Dec 2011 - Version 3.1
 
 	- Fix major bug in inflate/deflate compressed http content. It appears

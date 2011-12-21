@@ -172,7 +172,7 @@ LIVE EXAMPLE
         <Location /intranet/>
             ProxyPassReverse /
             PerlAddVar ProxyHTMLURLMap "/ /intranet/"
-            PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
+            PerlAddVar ProxyHTMLURLMap "http://intranet.domain.com /intranet"
             # Rewrite links that give access to the two previous location 
             PerlAddVar ProxyHTMLURLMap "/intranet/webmail /webmail"
             PerlAddVar ProxyHTMLURLMap "/intranet/webcal /webcal"

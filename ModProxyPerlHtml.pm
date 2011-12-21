@@ -28,7 +28,7 @@ use constant BUFF_LEN => 8000;
 use Apache2::ServerRec;
 use Apache2::URI;
 
-$Apache2::ModProxyPerlHtml::VERSION = '3.1';
+$Apache2::ModProxyPerlHtml::VERSION = '3.2';
 
 %Apache2::ModProxyPerlHtml::linkElements = (
 	'a'       => ['href'],
@@ -104,28 +104,41 @@ sub handler
 		# Skip content that should not have links
 		my $parsed_uri = $f->r->construct_url();
 		my $a_encoding = $f->r->headers_in->{'Accept-Encoding'} || '';
-
+		my $c_encoding = $f->r->headers_out->{'Content-Encoding'} || '';
+		my $ct = $f->r->headers_out->{'Content-type'} || '';
 	       	# if Accept-Encoding: gzip,deflate try to uncompress
-		if ( ($a_encoding =~ /gzip|deflate/) && ($content_type =~ /$ctx->{contenttype}/is) ) {
+		if ( ($c_encoding =~ /gzip|deflate/) && ($ct =~ /$ctx->{contenttype}/is) ) {
+			if ($debug) {
+				Apache2::ServerRec::warn("[ModProxyPerlHtml] Uncompressing $ct, Content-Encoding: $c_encoding\n");
+			}
 			use IO::Uncompress::AnyInflate qw(anyinflate $AnyInflateError) ;
 			my $output = '';
 			anyinflate  \$ctx->{data} => \$output or print STDERR "anyinflate failed: $AnyInflateError\n";
 			if ($ctx->{data} ne $output) {
 				$ctx->{data} = $output;
 			} else {
-				$a_encoding = '';
+				$c_encoding = '';
 			}
+		} else {
+			$c_encoding = '';
 		}
 		my $refresh = $f->r->headers_out->{'Refresh'};
 		if ($refresh) {
 			foreach my $p (@{$ctx->{pattern}}) {
 				my ($match, $substitute) = split(/[\s\t]+/, $p);
-				$refresh =~ s#([^\/:])$match#$1$substitute#;
+				if ($refresh =~ s#([^\/:])$match#$1$substitute#) {
+					if ($debug) {
+						Apache2::ServerRec::warn("[ModProxyPerlHtml] Refresh header match '$match', substituted by: /$substitute/\n");
+					}
+				}
 			}
 			$f->r->headers_out->set('Refresh' => $refresh);
 		}
 		
 		if ($content_type =~ /$ctx->{contenttype}/is) {
+			if ($debug) {
+				Apache2::ServerRec::warn("[ModProxyPerlHtml] Content-type '$content_type' match: /$ctx->{contenttype}/is\n");
+			}
 			# Replace links if pattern match
 			foreach my $p (@{$ctx->{pattern}}) {
 				my ($match, $substitute) = split(/[\s\t]+/, $p);
@@ -139,16 +152,21 @@ sub handler
 			}
 		}
 		# Compress again data if require
-		if ($a_encoding =~ /gzip/) {
-			use IO::Compress::Gzip qw(gzip $GzipError) ;
-			my $output = '';
-			my $status = gzip \$ctx->{data} => \$output or die "gzip failed: $GzipError\n";
-			$ctx->{data} = $output;
-		} elsif ($a_encoding =~ /deflate/) {
-			use IO::Compress::Deflate qw(deflate $DeflateError) ;
-			my $output = '';
-			my $status = deflate \$ctx->{data} => \$output or die "deflate failed: $DeflateError\n";
-			$ctx->{data} = $output;
+		if (($a_encoding =~ /gzip|deflate/) && ($c_encoding =~ /gzip|deflate/)) {
+			if ($debug) {
+				Apache2::ServerRec::warn("[ModProxyPerlHtml] Compressing output as Content-Encoding: $c_encoding\n");
+			}
+			if ($c_encoding =~ /gzip/) {
+				use IO::Compress::Gzip qw(gzip $GzipError) ;
+				my $output = '';
+				my $status = gzip \$ctx->{data} => \$output or die "gzip failed: $GzipError\n";
+				$ctx->{data} = $output;
+			} elsif ($c_encoding =~ /deflate/) {
+				use IO::Compress::Deflate qw(deflate $DeflateError) ;
+				my $output = '';
+				my $status = deflate \$ctx->{data} => \$output or die "deflate failed: $DeflateError\n";
+				$ctx->{data} = $output;
+			}
 		}
 		$f->ctx($ctx);
 
@@ -157,7 +175,7 @@ sub handler
 		my $c = $f->c;
 		if ($c->keepalive == Apache2::Const::CONN_KEEPALIVE && $ctx->{data} && $c->keepalives > $ctx->{keepalives}) {
 			if ($debug) {
-				warn "[ModProxyPerlHtml] cleaning context for keep alive request\n";
+				Apache2::ServerRec::warn("[ModProxyPerlHtml] Cleaning context for keep alive request\n");
 			}
 			$ctx->{data} = '';
 			$ctx->{pattern} = ();
@@ -414,7 +432,7 @@ to internal applications:
     <Location /intranet/>
         ProxyPassReverse /
         PerlAddVar ProxyHTMLURLMap "/ /intranet/"
-        PerlAddVar ProxyHTMLURLMap "http://intranet.samse.fr /intranet"
+        PerlAddVar ProxyHTMLURLMap "http://intranet.domain.com /intranet"
 	# Rewrite links that give access to the two previous location 
         PerlAddVar ProxyHTMLURLMap "/intranet/webmail /webmail"
         PerlAddVar ProxyHTMLURLMap "/intranet/webcal /webcal"
